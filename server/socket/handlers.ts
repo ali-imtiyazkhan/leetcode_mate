@@ -9,6 +9,9 @@ import {
   refreshTTL,
 } from '../redis/presence.js'
 
+import { startCall, endCall, findCallBySocket } from './webrtc.js'
+
+
 export function registerHandlers(io: Server, socket: Socket, redis: RedisClientType<any, any, any>) {
   let currentQuestion: string | null = null // which room this socket is currently in
   let currentUserId: string | null = null
@@ -79,23 +82,29 @@ export function registerHandlers(io: Server, socket: Socket, redis: RedisClientT
   })
 
   // ─── MATCH ACCEPT ────────────────────────────────────────────────────────────
-  socket.on('match:accept', ({ fromSocketId }: { fromSocketId: string }) => {
+  socket.on('match:accept', async ({ fromSocketId }: { fromSocketId: string }) => {
     // Create a deterministic private room name for this pair
     const sessionRoom = [socket.id, fromSocketId].sort().join('::')
     socket.join(sessionRoom)
+
+    // Get the other user's data to send back to the current user
+    const fromData = await getUserData(redis, fromSocketId)
 
     io.to(fromSocketId).emit('match:accepted', {
       sessionRoom,
       partnerSocketId: socket.id,
       partnerName: currentDisplayName,
     })
+
     socket.emit('match:accepted', {
       sessionRoom,
       partnerSocketId: fromSocketId,
+      partnerName: fromData?.displayName || 'Anonymous',
     })
 
     console.log(`Session started: ${sessionRoom}`)
   })
+
 
   // ─── MATCH DECLINE ───────────────────────────────────────────────────────────
   socket.on('match:decline', ({ fromSocketId }: { fromSocketId: string }) => {
@@ -135,11 +144,56 @@ export function registerHandlers(io: Server, socket: Socket, redis: RedisClientT
     io.to(to).emit('webrtc:hangup', { from: socket.id })
   })
 
+  // ─── CALL: initiated ─────────────────────────────────────────────────────────
+  socket.on('call:start', async ({ to, sessionRoom }: { to: string, sessionRoom: string }) => {
+    await startCall(redis, {
+      sessionRoom,
+      callerSocketId: socket.id,
+      calleeSocketId: to,
+    })
+    io.to(to).emit('call:incoming', {
+      from: socket.id,
+      fromName: currentDisplayName,
+      sessionRoom,
+    })
+  })
+
+  // ─── CALL: accepted ──────────────────────────────────────────────────────────
+  socket.on('call:accept', ({ to, sessionRoom }: { to: string, sessionRoom: string }) => {
+    io.to(to).emit('call:accepted', { from: socket.id, sessionRoom })
+  })
+
+  // ─── CALL: rejected ──────────────────────────────────────────────────────────
+  socket.on('call:reject', ({ to }: { to: string }) => {
+    io.to(to).emit('call:rejected', { from: socket.id })
+  })
+
+  // ─── CALL: ended ─────────────────────────────────────────────────────────────
+  socket.on('call:end', async ({ to, sessionRoom }: { to: string, sessionRoom: string }) => {
+    await endCall(redis, sessionRoom)
+    io.to(to).emit('call:ended', { from: socket.id })
+  })
+
+  // ─── CALL: media toggle (mute/camera off) ────────────────────────────────────
+  socket.on('call:media', ({ to, audio, video }: { to: string, audio: boolean, video: boolean }) => {
+    io.to(to).emit('call:media', { from: socket.id, audio, video })
+  })
+
   // ─── DISCONNECT ──────────────────────────────────────────────────────────────
   socket.on('disconnect', async (reason) => {
     console.log(`🔌 Disconnected: ${socket.id} (${reason})`)
     if (currentQuestion) {
       await handleLeave(io, socket, redis, currentQuestion)
+    }
+
+    // Cleanup active call
+    const activeCall = await findCallBySocket(redis, socket.id)
+    if (activeCall) {
+      const partnerSocketId = activeCall.callerSocketId === socket.id
+        ? activeCall.calleeSocketId
+        : activeCall.callerSocketId
+      await endCall(redis, activeCall.sessionRoom)
+      io.to(partnerSocketId).emit('call:ended', { from: socket.id, reason: 'disconnected' })
     }
   })
 }
