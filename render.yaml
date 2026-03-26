@@ -17,7 +17,6 @@ services:
     dockerContext: server
     dockerfilePath: Dockerfile
 
-databases:
   - type: redis
     name: codemate-redis
     plan: free
