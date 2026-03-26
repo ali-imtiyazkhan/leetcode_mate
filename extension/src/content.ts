@@ -600,7 +600,7 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
     }
   })
 
-  // ── WebRTC ───────────────────────────────────────────────────────────────────
+  // WebRTC
 
   function createPeer(targetId: string) {
     peer = new WebRTCPeer({
