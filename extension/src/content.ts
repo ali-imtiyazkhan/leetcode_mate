@@ -2,6 +2,7 @@
 // Runs on https://leetcode.com/problems/* pages
 
 import { io, Socket } from 'socket.io-client'
+import { WebRTCPeer } from './webrtc'
 
 const SERVER_URL = 'http://localhost:4000'
 
@@ -227,32 +228,71 @@ function getWidgetHTML(): string {
       }
       .minimize-btn:hover { color: #9ca3af; }
 
-      /* Video Styles */
-      .video-wrap {
-        display: none;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-        margin-bottom: 10px;
-        position: relative;
+      /* Call UI Styles */
+      .call-wrap { display: none; margin-top: 10px; }
+      .call-wrap.open { display: block; }
+
+      .call-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #080810;
+        border-radius: 10px;
+        padding: 10px 12px;
+        margin-bottom: 8px;
       }
-      .video-wrap.visible { display: grid; }
-      
-      video {
-        width: 100%;
-        height: 80px;
+      .call-status { font-size: 12px; color: #9ca3af; }
+      .call-status .name { color: #a78bfa; font-weight: 600; }
+      .call-timer { font-size: 13px; font-weight: 700; color: #4ade80; font-variant-numeric: tabular-nums; }
+
+      .videos {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+      .video-wrap {
         background: #080810;
         border-radius: 8px;
-        object-fit: cover;
-        border: 1px solid #2a2a40;
+        overflow: hidden;
+        aspect-ratio: 4/3;
+        position: relative;
       }
-      .local-video { transform: scaleX(-1); }
+      .video-wrap video { width: 100%; height: 100%; object-fit: cover; }
+      .video-label {
+        position: absolute;
+        bottom: 4px; left: 6px;
+        font-size: 10px;
+        color: rgba(255,255,255,0.7);
+        background: rgba(0,0,0,0.4);
+        padding: 1px 5px;
+        border-radius: 4px;
+      }
+      
+      .call-controls { display: flex; gap: 6px; }
+      .ctrl-btn {
+        flex: 1; padding: 8px 4px; border-radius: 8px; border: none;
+        background: #1e1e30; color: #e2e2f0; font-size: 11px; cursor: pointer;
+        transition: background 0.15s; display: flex; flex-direction: column;
+        align-items: center; gap: 3px;
+      }
+      .ctrl-btn:hover { background: #2a2a44; }
+      .ctrl-btn.active { background: #2e1065; color: #a78bfa; }
+      .ctrl-btn.end { background: #7f1d1d; color: #fca5a5; }
+      .ctrl-btn.end:hover { background: #991b1b; }
+      .ctrl-icon { font-size: 16px; }
 
-      .call-controls {
-        display: flex;
-        gap: 6px;
-        margin-bottom: 10px;
+      .incoming-call {
+        background: #0d1f0d;
+        border: 1px solid #14532d;
+        border-radius: 10px;
+        padding: 12px;
+        margin-top: 10px;
+        display: none;
       }
-      .call-controls .btn { padding: 6px; font-size: 11px; }
+      .incoming-call.visible { display: block; }
+      .incoming-call-name { color: #4ade80; font-weight: 600; font-size: 13px; }
+      .incoming-call-actions { display: flex; gap: 6px; margin-top: 8px; }
 
       .pill {
         display: none;
@@ -305,24 +345,60 @@ function getWidgetHTML(): string {
 
       <div class="chat-wrap" id="cm-chat-wrap">
         <div class="chat-partner">Paired with <span id="cm-partner-name">partner</span></div>
-
-        <div class="call-controls" id="cm-call-controls">
-          <button class="btn" id="cm-call-btn" style="background:#22c55e">Video Call</button>
-          <button class="btn danger" id="cm-hangup-btn" style="display:none">Hang Up</button>
-        </div>
-
-        <div class="video-wrap" id="cm-video-wrap">
-          <video id="cm-remote-video" autoplay playsinline title="Partner"></video>
-          <video id="cm-local-video" autoplay playsinline muted class="local-video" title="You"></video>
-        </div>
-
         <div class="chat-box" id="cm-chat-box"></div>
         <div class="typing-indicator" id="cm-typing">Partner is typing...</div>
         <div class="chat-input-row">
           <input type="text" id="cm-msg-input" placeholder="Message your partner..." maxlength="500" />
           <button id="cm-send-btn">Send</button>
         </div>
+        
+        <div class="divider"></div>
+        
+        <button class="btn" id="cm-start-call-btn" style="background:#0f6e56;margin-bottom:6px;display:none">
+          Start video call
+        </button>
+        
         <button class="btn danger" id="cm-end-btn">End session</button>
+
+        <div class="call-wrap" id="cm-call-wrap">
+          <div class="call-bar">
+            <div class="call-status">Call with <span class="name" id="cm-call-partner">partner</span></div>
+            <div class="call-timer" id="cm-call-timer">00:00</div>
+          </div>
+          <div class="videos">
+            <div class="video-wrap">
+              <video id="cm-local-video" autoplay muted playsinline></video>
+              <div class="video-label">You</div>
+            </div>
+            <div class="video-wrap">
+              <video id="cm-remote-video" autoplay playsinline></video>
+              <div class="video-label" id="cm-remote-label">Partner</div>
+            </div>
+          </div>
+          <div class="call-controls">
+            <button class="ctrl-btn active" id="cm-mic-btn">
+              <span class="ctrl-icon">🎙</span><span>Mic</span>
+            </button>
+            <button class="ctrl-btn active" id="cm-cam-btn">
+              <span class="ctrl-icon">📷</span><span>Cam</span>
+            </button>
+            <button class="ctrl-btn" id="cm-screen-btn">
+              <span class="ctrl-icon">🖥</span><span>Screen</span>
+            </button>
+            <button class="ctrl-btn end" id="cm-hangup-btn">
+              <span class="ctrl-icon">📵</span><span>End</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="incoming-call" id="cm-incoming-call">
+          <div class="incoming-call-name" id="cm-caller-name">Someone</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:2px">is calling you...</div>
+          <div class="incoming-call-actions">
+            <button class="btn" id="cm-answer-btn" style="background:#15803d;margin-top:0;padding:7px">Answer</button>
+            <button class="btn secondary" id="cm-reject-btn" style="margin-top:0;padding:7px">Decline</button>
+          </div>
+        </div>
       </div>
     </div>
   `
@@ -361,15 +437,13 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
   let partnerSocketId: string | null = null
   let typingTimer: any = null
 
-  // WebRTC state
-  let peerConnection: RTCPeerConnection | null = null
-  let localStream: MediaStream | null = null
-  const ICESERVERS = {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-    ],
-  }
+  // WebRTC
+  let peer: WebRTCPeer | null = null
+  let callTimer: any = null
+  let callSeconds = 0
+  let micEnabled = true
+  let camEnabled = true
+  let isSharing = false
 
   // ── DOM refs ──
   const $count       = shadow.getElementById('cm-count') as HTMLSpanElement
@@ -391,12 +465,21 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
   const $card        = shadow.getElementById('cm-card') as HTMLDivElement
   const $pill        = shadow.getElementById('cm-pill') as HTMLDivElement
 
-  // Video refs
-  const $callBtn     = shadow.getElementById('cm-call-btn') as HTMLButtonElement
-  const $hangupBtn   = shadow.getElementById('cm-hangup-btn') as HTMLButtonElement
-  const $videoWrap   = shadow.getElementById('cm-video-wrap') as HTMLDivElement
-  const $localVideo  = shadow.getElementById('cm-local-video') as HTMLVideoElement
-  const $remoteVideo = shadow.getElementById('cm-remote-video') as HTMLVideoElement
+  // Call DOM refs
+  const $startCallBtn = shadow.getElementById('cm-start-call-btn') as HTMLButtonElement
+  const $callWrap     = shadow.getElementById('cm-call-wrap') as HTMLDivElement
+  const $callPartner  = shadow.getElementById('cm-call-partner') as HTMLSpanElement
+  const $callTimer    = shadow.getElementById('cm-call-timer') as HTMLDivElement
+  const $localVideo   = shadow.getElementById('cm-local-video') as HTMLVideoElement
+  const $remoteVideo  = shadow.getElementById('cm-remote-video') as HTMLVideoElement
+  const $micBtn       = shadow.getElementById('cm-mic-btn') as HTMLButtonElement
+  const $camBtn       = shadow.getElementById('cm-cam-btn') as HTMLButtonElement
+  const $screenBtn    = shadow.getElementById('cm-screen-btn') as HTMLButtonElement
+  const $hangupBtn    = shadow.getElementById('cm-hangup-btn') as HTMLButtonElement
+  const $incomingCall = shadow.getElementById('cm-incoming-call') as HTMLDivElement
+  const $callerName   = shadow.getElementById('cm-caller-name') as HTMLDivElement
+  const $answerBtn    = shadow.getElementById('cm-answer-btn') as HTMLButtonElement
+  const $rejectBtn    = shadow.getElementById('cm-reject-btn') as HTMLButtonElement
 
   // ── Minimize ──
   $minimize.addEventListener('click', () => {
@@ -477,6 +560,7 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
     $matchBtn.style.display = 'none'
     $status.style.display = 'none'
     $chatWrap.classList.add('open')
+    $startCallBtn.style.display = 'block'
     appendSystemMessage('Session started! Say hello 👋')
   })
 
@@ -494,7 +578,6 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
     if (e.key === 'Enter') sendMessage()
   })
 
-  // Typing indicator
   $msgInput.addEventListener('input', () => {
     if (!sessionRoom) return
     socket.emit('chat:typing', { sessionRoom, isTyping: true })
@@ -517,120 +600,154 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
     }
   })
 
-  // ── WebRTC Logic ──
-  async function startCall() {
-    try {
-      appendSystemMessage('Requesting camera/mic...')
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-      $localVideo.srcObject = localStream
-      $videoWrap.classList.add('visible')
-      $callBtn.style.display = 'none'
-      $hangupBtn.style.display = 'block'
+  // ── WebRTC ───────────────────────────────────────────────────────────────────
 
-      peerConnection = new RTCPeerConnection(ICESERVERS)
-      
-      localStream.getTracks().forEach(track => {
-        peerConnection!.addTrack(track, localStream!)
-      })
+  function createPeer(targetId: string) {
+    peer = new WebRTCPeer({
+      onTrack: (stream) => {
+        $remoteVideo.srcObject = stream
+      },
+      onIceCandidate: (candidate) => {
+        socket.emit('webrtc:ice', { to: targetId, candidate })
+      },
+      onConnectionChange: (state) => {
+        if (state === 'connected') startCallTimer()
+        if (state === 'disconnected' || state === 'failed') hangUp()
+      },
+    })
+    return peer
+  }
 
-      peerConnection.ontrack = (event) => {
-        $remoteVideo.srcObject = event.streams[0]
-      }
+  async function startCall(targetId: string) {
+    if (!sessionRoom) return
+    // Now we ONLY emit call:start and wait for callee to accept via 'call:accepted'
+    socket.emit('call:start', { to: targetId, sessionRoom })
+    setStatus('Calling partner...')
+  }
 
-      peerConnection.onicecandidate = (event) => {
-        if (event.candidate && partnerSocketId) {
-          socket.emit('webrtc:ice', { to: partnerSocketId, candidate: event.candidate })
-        }
-      }
+  async function handleCallAccepted(targetId: string) {
+    if (!sessionRoom || peer) return // already in a call or no session
+    
+    const p = createPeer(targetId)
+    const stream = await p.startLocalMedia()
+    $localVideo.srcObject = stream
+    
+    const offer = await p.createOffer()
+    socket.emit('webrtc:offer', { to: targetId, offer })
+    
+    openCallUI($partnerName.textContent || 'partner')
+  }
 
-      const offer = await peerConnection.createOffer()
-      await peerConnection.setLocalDescription(offer)
-      socket.emit('webrtc:offer', { to: partnerSocketId!, offer })
-      
-      appendSystemMessage('Calling partner...')
-    } catch (err) {
-      console.error('Call failed', err)
-      appendSystemMessage('Call error: ' + (err as Error).message)
-    }
+  async function answerCall(targetId: string) {
+    if (!sessionRoom) return
+    const p = createPeer(targetId)
+    const stream = await p.startLocalMedia()
+    $localVideo.srcObject = stream
+    
+    socket.emit('call:accept', { to: targetId, sessionRoom })
+    openCallUI($partnerName.textContent || 'partner')
   }
 
   function hangUp(notify = true) {
-    if (notify && partnerSocketId) {
-       socket.emit('webrtc:hangup', { to: partnerSocketId })
+    if (notify && partnerSocketId && sessionRoom) {
+      socket.emit('call:end', { to: partnerSocketId, sessionRoom })
     }
-    if (peerConnection) {
-      peerConnection.close()
-      peerConnection = null
-    }
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop())
-      localStream = null
-    }
+    peer?.destroy()
+    peer = null
+    stopCallTimer()
+    $callWrap.classList.remove('open')
     $localVideo.srcObject = null
     $remoteVideo.srcObject = null
-    $videoWrap.classList.remove('visible')
-    $callBtn.style.display = 'block'
-    $hangupBtn.style.display = 'none'
-    appendSystemMessage('Call ended.')
+    $startCallBtn.style.display = 'block'
+    micEnabled = true
+    camEnabled = true
+    isSharing = false
+    updateControlStates()
   }
 
-  $callBtn.addEventListener('click', startCall)
+  function openCallUI(partnerName: string) {
+    $callPartner.textContent = partnerName
+    $callWrap.classList.add('open')
+    $startCallBtn.style.display = 'none'
+  }
+
+  $startCallBtn.addEventListener('click', () => {
+    if (partnerSocketId) startCall(partnerSocketId)
+  })
+
+  $micBtn.addEventListener('click', () => {
+    micEnabled = !micEnabled
+    peer?.toggleAudio(micEnabled)
+    socket.emit('call:media', { to: partnerSocketId, audio: micEnabled, video: camEnabled })
+    updateControlStates()
+  })
+
+  $camBtn.addEventListener('click', () => {
+    camEnabled = !camEnabled
+    peer?.toggleVideo(camEnabled)
+    socket.emit('call:media', { to: partnerSocketId, audio: micEnabled, video: camEnabled })
+    updateControlStates()
+  })
+
+  $screenBtn.addEventListener('click', async () => {
+    if (!peer) return
+    if (!isSharing) {
+      try {
+        await peer.startScreenShare()
+        isSharing = true
+      } catch (e: any) {
+        setStatus(e.message, 'error')
+      }
+    } else {
+      await peer.stopScreenShare()
+      isSharing = false
+    }
+    updateControlStates()
+  })
+
   $hangupBtn.addEventListener('click', () => hangUp(true))
 
-  socket.on('webrtc:offer', async ({ from, offer }: { from: string, offer: any }) => {
-    try {
-      if (!peerConnection) {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-        $localVideo.srcObject = localStream
-        $videoWrap.classList.add('visible')
-        $callBtn.style.display = 'none'
-        $hangupBtn.style.display = 'block'
-
-        peerConnection = new RTCPeerConnection(ICESERVERS)
-        localStream.getTracks().forEach(track => {
-          peerConnection!.addTrack(track, localStream!)
-        })
-        
-        peerConnection.ontrack = (event) => {
-          $remoteVideo.srcObject = event.streams[0]
-        }
-        
-        peerConnection.onicecandidate = (event) => {
-          if (event.candidate) {
-            socket.emit('webrtc:ice', { to: from, candidate: event.candidate })
-          }
-        }
-      }
-
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer))
-      const answer = await peerConnection.createAnswer()
-      await peerConnection.setLocalDescription(answer)
-      socket.emit('webrtc:answer', { to: from, answer })
-      appendSystemMessage('Incoming call...')
-    } catch (err) {
-       console.error('Error handling offer', err)
+  // Signaling
+  socket.on('call:incoming', ({ from, fromName }: { from: string, fromName: string }) => {
+    $callerName.textContent = fromName || 'Someone'
+    $incomingCall.classList.add('visible')
+    $answerBtn.onclick = () => {
+       $incomingCall.classList.remove('visible')
+       answerCall(from)
     }
+    $rejectBtn.onclick = () => {
+       $incomingCall.classList.remove('visible')
+       socket.emit('call:reject', { to: from })
+    }
+  })
+
+  socket.on('call:accepted', ({ from }: { from: string }) => {
+    handleCallAccepted(from)
+  })
+
+
+  socket.on('webrtc:offer', async ({ from, offer }: { from: string, offer: any }) => {
+    if (!peer) return
+    const answer = await peer.handleOffer(offer)
+    socket.emit('webrtc:answer', { to: from, answer })
   })
 
   socket.on('webrtc:answer', async ({ answer }: { answer: any }) => {
-    if (peerConnection) {
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(answer))
-      appendSystemMessage('Call connected!')
-    }
+    if (peer) await peer.handleAnswer(answer)
   })
 
   socket.on('webrtc:ice', async ({ candidate }: { candidate: any }) => {
-    if (peerConnection) {
-      try {
-        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
-      } catch (e) {
-        console.error('Error adding ICE candidate', e)
-      }
-    }
+    if (peer) await peer.addIceCandidate(candidate)
   })
 
-  socket.on('webrtc:hangup', () => {
+  socket.on('call:ended', () => {
     hangUp(false)
+    appendSystemMessage('Call ended.')
+  })
+
+  socket.on('call:rejected', () => {
+    setStatus('Call declined.', 'error')
+    $startCallBtn.style.display = 'block'
   })
 
   // ── End session ──
@@ -669,6 +786,28 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
     div.textContent = text
     $chatBox.appendChild(div)
     $chatBox.scrollTop = $chatBox.scrollHeight
+  }
+
+  function updateControlStates() {
+    $micBtn.classList.toggle('active', micEnabled)
+    $camBtn.classList.toggle('active', camEnabled)
+    $screenBtn.classList.toggle('active', isSharing)
+  }
+
+  function startCallTimer() {
+    callSeconds = 0
+    callTimer = setInterval(() => {
+      callSeconds++
+      const m = String(Math.floor(callSeconds / 60)).padStart(2, '0')
+      const s = String(callSeconds % 60).padStart(2, '0')
+      $callTimer.textContent = `${m}:${s}`
+    }, 1000)
+  }
+
+  function stopCallTimer() {
+    if (callTimer) clearInterval(callTimer)
+    callTimer = null
+    $callTimer.textContent = '00:00'
   }
 }
 
