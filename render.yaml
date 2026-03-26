@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: codemate-server
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: codemate-redis
+          property: connectionString
+      - key: CLIENT_ORIGIN
+        value: https://your-frontend-url.vercel.app
+    dockerContext: server
+    dockerfilePath: Dockerfile
+
+databases:
+  - type: redis
+    name: codemate-redis
+    plan: free
+    ipAllowList: []
