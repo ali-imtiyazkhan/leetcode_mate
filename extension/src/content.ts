@@ -4,7 +4,7 @@
 import { io, Socket } from 'socket.io-client'
 import { WebRTCPeer } from './webrtc'
 
-const SERVER_URL = 'http://localhost:4000'
+const SERVER_URL = (import.meta as any).env.VITE_SERVER_URL || 'http://localhost:4000'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
