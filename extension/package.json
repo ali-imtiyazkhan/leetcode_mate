@@ -1,0 +1,19 @@
+{
+  "name": "codemate-extension",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "watch": "vite build --watch"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.260",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0",
+    "vite-plugin-static-copy": "^1.0.0"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.3"
+  }
+}
