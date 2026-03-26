@@ -14,8 +14,8 @@ services:
           property: connectionString
       - key: CLIENT_ORIGIN
         value: https://your-frontend-url.vercel.app
-    dockerContext: server
-    dockerfilePath: server/Dockerfile
+    dockerContext: .
+    dockerfilePath: render.Dockerfile
 
   - type: redis
     name: codemate-redis
