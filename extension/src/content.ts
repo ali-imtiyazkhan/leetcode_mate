@@ -331,7 +331,13 @@ function getWidgetHTML(): string {
 
       <div class="divider"></div>
 
-      <button class="btn" id="cm-match-btn">Find a partner</button>
+      <div id="cm-signin-wrap" style="display:none; flex-direction:column; gap:8px;">
+        <div style="font-size:12px;color:#9ca3af;margin-bottom:4px">Enter your name to join</div>
+        <input type="text" id="cm-name-input" placeholder="Your display name..." maxlength="20" style="background:#0d0d1a;border:1px solid #2a2a40;border-radius:6px;padding:9px 12px;color:#e2e2f0;font-size:13px;outline:none;width:100%" />
+        <button class="btn" id="cm-signin-btn">Join CodeMate</button>
+      </div>
+
+      <button class="btn" id="cm-match-btn" style="display:none">Find a partner</button>
       <div class="status" id="cm-status"></div>
 
       <div class="incoming-banner" id="cm-incoming">
@@ -428,10 +434,10 @@ function injectWidget(slug: string): void {
 // ── Socket initialisation & event wiring ──────────────────────────────────────
 
 function initSocket(shadow: ShadowRoot, slug: string): void {
-  const socket: Socket = io(SERVER_URL, { transports: ['websocket'] })
+  const socket: Socket = io(SERVER_URL, { transports: ['websocket'], autoConnect: false })
 
   const userId = getUserId()
-  const displayName = 'Coder_' + userId.slice(-5)
+  let displayName = localStorage.getItem('codemate_username') || ''
 
   let sessionRoom: string | null = null
   let partnerSocketId: string | null = null
@@ -464,6 +470,31 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
   const $minimize    = shadow.getElementById('cm-minimize') as HTMLButtonElement
   const $card        = shadow.getElementById('cm-card') as HTMLDivElement
   const $pill        = shadow.getElementById('cm-pill') as HTMLDivElement
+
+  const $signinWrap  = shadow.getElementById('cm-signin-wrap') as HTMLDivElement
+  const $nameInput   = shadow.getElementById('cm-name-input') as HTMLInputElement
+  const $signinBtn   = shadow.getElementById('cm-signin-btn') as HTMLButtonElement
+
+  function showMainUI() {
+    $signinWrap.style.display = 'none'
+    $matchBtn.style.display = 'block'
+    socket.connect()
+  }
+
+  if (displayName) {
+    showMainUI()
+  } else {
+    $signinWrap.style.display = 'flex'
+    $matchBtn.style.display = 'none'
+  }
+
+  $signinBtn.addEventListener('click', () => {
+    const val = $nameInput.value.trim()
+    if (!val) return
+    displayName = val
+    localStorage.setItem('codemate_username', displayName)
+    showMainUI()
+  })
 
   // Call DOM refs
   const $startCallBtn = shadow.getElementById('cm-start-call-btn') as HTMLButtonElement
