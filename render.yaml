@@ -7,11 +7,16 @@ services:
     envVars:
       - key: PORT
         value: 10000
-      - key: REDIS_URL
+      - key: REDIS_HOST
         fromService:
           type: redis
           name: codemate-redis
-          property: connectionString
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: redis
+          name: codemate-redis
+          property: port
       - key: CLIENT_ORIGIN
         value: https://your-frontend-url.vercel.app
     dockerContext: .

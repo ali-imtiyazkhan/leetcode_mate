@@ -19,7 +19,10 @@ const io = new Server(httpServer, {
 })
 
 // Redis client configuration with retry strategy for production
-const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
+// Prioritize REDIS_URL, then construct from REDIS_HOST/PORT, fallback to localhost
+const redisUrl = process.env.REDIS_URL || 
+                 (process.env.REDIS_HOST ? `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT || 6379}` : 'redis://localhost:6379')
+
 const redisOptions: any = {
   url: redisUrl,
   socket: {
