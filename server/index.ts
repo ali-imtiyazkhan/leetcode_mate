@@ -18,10 +18,16 @@ const io = new Server(httpServer, {
   },
 })
 
-// Redis client configuration with retry strategy for production
-// Prioritize REDIS_URL, then construct from REDIS_HOST/PORT, fallback to localhost
-const redisUrl = process.env.REDIS_URL || 
-                 (process.env.REDIS_HOST ? `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT || 6379}` : 'redis://localhost:6379')
+// Determine the best Redis URL to use
+let redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
+
+// If the Blueprint provided an internal host, prefer it over a potentially public REDIS_URL
+if (process.env.REDIS_HOST) {
+  redisUrl = `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT || 6379}`
+  console.log('📡 Using internal Redis network host:', process.env.REDIS_HOST)
+} else {
+  console.log('📡 Using environment REDIS_URL:', redisUrl.split('@').pop()) // Log only host part
+}
 
 const redisOptions: any = {
   url: redisUrl,
@@ -39,10 +45,10 @@ const redisOptions: any = {
   },
 }
 
-// Add TLS support for rediss:// URLs (common in production)
+// Add TLS support for rediss:// URLs
 if (redisUrl.startsWith('rediss://')) {
   redisOptions.socket.tls = true
-  redisOptions.socket.rejectUnauthorized = false // Required for some internal cloud certs
+  redisOptions.socket.rejectUnauthorized = false
 }
 
 export const redis = createClient(redisOptions)
@@ -54,6 +60,13 @@ redis.on('connect', () => {
   isRedisReady = true
   console.log('✅ Redis connected')
 })
+
+redis.on('error', (err) => {
+  console.error('Redis error:', err)
+  isRedisReady = false
+})
+
+redisSub.on('error', (err) => console.error('Redis sub error:', err))
 
 // Graceful connect in background
 async function connectRedis(maxAttempts = 10) {
