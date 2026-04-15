@@ -19,20 +19,23 @@ const io = new Server(httpServer, {
 })
 
 // Determine the best Redis URL to use
-let redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
+// Priority: 1. REDIS_URL (Manual/Upstash) 2. REDIS_HOST (Blueprint) 3. Localhost
+let redisUrl = process.env.REDIS_URL
 
-// If the Blueprint provided an internal host, prefer it over a potentially public REDIS_URL
-if (process.env.REDIS_HOST) {
+if (!redisUrl && process.env.REDIS_HOST) {
   redisUrl = `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT || 6379}`
   console.log('📡 Using internal Redis network host:', process.env.REDIS_HOST)
+} else if (redisUrl) {
+  console.log('📡 Using REDIS_URL:', redisUrl.split('@').pop()) // Log host part safely
 } else {
-  console.log('📡 Using environment REDIS_URL:', redisUrl.split('@').pop()) // Log only host part
+  redisUrl = 'redis://localhost:6379'
+  console.log('📡 Using default localhost Redis')
 }
 
 const redisOptions: any = {
   url: redisUrl,
   socket: {
-    connectTimeout: 30_000,        // 30s to establish initial connection
+    connectTimeout: 30_000, 
     reconnectStrategy: (retries: number) => {
       if (retries > 20) {
         console.error('❌ Redis: max reconnection attempts reached')
