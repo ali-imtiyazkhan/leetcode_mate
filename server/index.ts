@@ -19,8 +19,9 @@ const io = new Server(httpServer, {
 })
 
 // Redis client configuration with retry strategy for production
-const redisOptions = {
-  url: process.env.REDIS_URL || 'redis://localhost:6379',
+const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
+const redisOptions: any = {
+  url: redisUrl,
   socket: {
     connectTimeout: 30_000,        // 30s to establish initial connection
     reconnectStrategy: (retries: number) => {
@@ -33,6 +34,12 @@ const redisOptions = {
       return delay
     },
   },
+}
+
+// Add TLS support for rediss:// URLs (common in production)
+if (redisUrl.startsWith('rediss://')) {
+  redisOptions.socket.tls = true
+  redisOptions.socket.rejectUnauthorized = false // Required for some internal cloud certs
 }
 
 export const redis = createClient(redisOptions)
