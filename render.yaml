@@ -20,4 +20,6 @@ services:
   - type: redis
     name: codemate-redis
     plan: free
-    ipAllowList: []
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: Allow all (Render internal)

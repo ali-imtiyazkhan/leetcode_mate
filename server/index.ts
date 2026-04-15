@@ -18,16 +18,49 @@ const io = new Server(httpServer, {
   },
 })
 
-// Redis client (pub/sub needs two separate connections)
-export const redis = createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' })
+// Redis client configuration with retry strategy for production
+const redisOptions = {
+  url: process.env.REDIS_URL || 'redis://localhost:6379',
+  socket: {
+    connectTimeout: 30_000,        // 30s to establish initial connection
+    reconnectStrategy: (retries: number) => {
+      if (retries > 20) {
+        console.error('❌ Redis: max reconnection attempts reached')
+        return new Error('Max Redis reconnection attempts reached')
+      }
+      const delay = Math.min(retries * 500, 30_000) // exponential backoff, max 30s
+      console.log(`🔄 Redis reconnecting in ${delay}ms (attempt ${retries})...`)
+      return delay
+    },
+  },
+}
+
+export const redis = createClient(redisOptions)
 export const redisSub = redis.duplicate()
 
 redis.on('error', (err) => console.error('Redis error:', err))
+redisSub.on('error', (err) => console.error('Redis sub error:', err))
 
-await redis.connect()
-await redisSub.connect()
+// Graceful connect with retry
+async function connectRedis(maxAttempts = 5) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await redis.connect()
+      await redisSub.connect()
+      console.log('✅ Redis connected')
+      return
+    } catch (err) {
+      console.error(`❌ Redis connect attempt ${attempt}/${maxAttempts} failed:`, err)
+      if (attempt === maxAttempts) {
+        throw new Error('Could not connect to Redis after multiple attempts')
+      }
+      // Wait before retrying (2s, 4s, 6s, 8s...)
+      await new Promise((r) => setTimeout(r, attempt * 2000))
+    }
+  }
+}
 
-console.log('✅ Redis connected')
+await connectRedis()
 
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok', timestamp: Date.now() }))

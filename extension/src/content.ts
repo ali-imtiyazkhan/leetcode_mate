@@ -22,8 +22,6 @@ function getUserId(): string {
   return id
 }
 
-// ── Widget HTML & CSS (injected into Shadow DOM) ───────────────────────────────
-
 function getWidgetHTML(): string {
   return `
     <style>
