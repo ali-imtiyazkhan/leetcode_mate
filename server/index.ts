@@ -38,35 +38,46 @@ const redisOptions = {
 export const redis = createClient(redisOptions)
 export const redisSub = redis.duplicate()
 
-redis.on('error', (err) => console.error('Redis error:', err))
-redisSub.on('error', (err) => console.error('Redis sub error:', err))
+let isRedisReady = false
 
-// Graceful connect with retry
-async function connectRedis(maxAttempts = 5) {
+redis.on('connect', () => {
+  isRedisReady = true
+  console.log('✅ Redis connected')
+})
+
+// Graceful connect in background
+async function connectRedis(maxAttempts = 10) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
+      if (redis.isOpen) return
       await redis.connect()
       await redisSub.connect()
-      console.log('✅ Redis connected')
       return
     } catch (err) {
       console.error(`❌ Redis connect attempt ${attempt}/${maxAttempts} failed:`, err)
       if (attempt === maxAttempts) {
-        throw new Error('Could not connect to Redis after multiple attempts')
+        console.error('Final Redis connection attempt failed. Continuing in background...')
       }
-      // Wait before retrying (2s, 4s, 6s, 8s...)
       await new Promise((r) => setTimeout(r, attempt * 2000))
     }
   }
 }
 
-await connectRedis()
+// Start Redis connection in background
+connectRedis().catch(err => console.error('Background Redis connection error:', err))
 
 // Health check
-app.get('/health', (_, res) => res.json({ status: 'ok', timestamp: Date.now() }))
+app.get('/health', (_, res) => res.json({ 
+  status: 'ok', 
+  redis: isRedisReady ? 'connected' : 'disconnected',
+  timestamp: Date.now() 
+}))
 
 // Stats endpoint — total active users across all rooms
 app.get('/stats', async (req, res) => {
+  if (!isRedisReady) {
+    return res.json({ totalOnline: 0, roomCount: 0, note: 'Redis not ready' })
+  }
   try {
     const keys = await redis.keys('room:*')
     let total = 0
@@ -82,10 +93,11 @@ app.get('/stats', async (req, res) => {
 // Register all socket event handlers
 io.on('connection', (socket: Socket) => {
   console.log(`🔌 Socket connected: ${socket.id}`)
-  registerHandlers(io, socket, redis as any) // Type cast for now if redis client type is complex
+  registerHandlers(io, socket, redis as any)
 })
 
 const PORT = process.env.PORT || 4000
 httpServer.listen(PORT, () => {
   console.log(`🚀 CodeMate server running on port ${PORT}`)
+  console.log(`📡 Port binding successful. System is listening.`)
 })

@@ -4,11 +4,11 @@ const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:4000'
 
 export async function GET() {
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 8000) // 8s timeout
+  const timeoutId = setTimeout(() => controller.abort(), 8000)
 
   try {
     const res = await fetch(`${SERVER_URL}/api/rooms`, {
-      next: { revalidate: 0 }, // Disable ISR during build context
+      next: { revalidate: 0 },
       signal: controller.signal
     })
     
