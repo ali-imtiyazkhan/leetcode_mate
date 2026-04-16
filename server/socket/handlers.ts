@@ -106,12 +106,12 @@ export function registerHandlers(io: Server, socket: Socket, redis: RedisClientT
   })
 
 
-  // ─── MATCH DECLINE ───────────────────────────────────────────────────────────
+  // MATCH DECLINE 
   socket.on('match:decline', ({ fromSocketId }: { fromSocketId: string }) => {
     io.to(fromSocketId).emit('match:declined', { message: 'The other user declined the session.' })
   })
 
-  // ─── TEXT CHAT within a session ─────────────────────────────────────────────
+  // TEXT CHAT within a session 
   socket.on('chat:message', ({ sessionRoom, message }: { sessionRoom: string, message: string }) => {
     if (!message || !sessionRoom) return
     io.to(sessionRoom).emit('chat:message', {
@@ -122,12 +122,12 @@ export function registerHandlers(io: Server, socket: Socket, redis: RedisClientT
     })
   })
 
-  // ─── TYPING INDICATOR ────────────────────────────────────────────────────────
+  // TYPING INDICATOR 
   socket.on('chat:typing', ({ sessionRoom, isTyping }: { sessionRoom: string, isTyping: boolean }) => {
     socket.to(sessionRoom).emit('chat:typing', { from: socket.id, isTyping })
   })
 
-  // ─── WebRTC SIGNALING ────────────────────────────────────────────────────────
+  // WebRTC SIGNALING 
   socket.on('webrtc:offer', ({ to, offer }: { to: string, offer: any }) => {
     io.to(to).emit('webrtc:offer', { from: socket.id, offer })
   })
@@ -144,7 +144,16 @@ export function registerHandlers(io: Server, socket: Socket, redis: RedisClientT
     io.to(to).emit('webrtc:hangup', { from: socket.id })
   })
 
-  // ─── CALL: initiated ─────────────────────────────────────────────────────────
+  // WHITEBOARD 
+  socket.on('board:draw', ({ sessionRoom, ...data }: { sessionRoom: string; [key: string]: any }) => {
+    socket.to(sessionRoom).emit('board:draw', data)
+  })
+
+  socket.on('board:clear', ({ sessionRoom }: { sessionRoom: string }) => {
+    socket.to(sessionRoom).emit('board:clear')
+  })
+
+  // CALL: initiated 
   socket.on('call:start', async ({ to, sessionRoom }: { to: string, sessionRoom: string }) => {
     await startCall(redis, {
       sessionRoom,
@@ -158,28 +167,28 @@ export function registerHandlers(io: Server, socket: Socket, redis: RedisClientT
     })
   })
 
-  // ─── CALL: accepted ──────────────────────────────────────────────────────────
+  // CALL: accepted 
   socket.on('call:accept', ({ to, sessionRoom }: { to: string, sessionRoom: string }) => {
     io.to(to).emit('call:accepted', { from: socket.id, sessionRoom })
   })
 
-  // ─── CALL: rejected ──────────────────────────────────────────────────────────
+  // CALL: rejected 
   socket.on('call:reject', ({ to }: { to: string }) => {
     io.to(to).emit('call:rejected', { from: socket.id })
   })
 
-  // ─── CALL: ended ─────────────────────────────────────────────────────────────
+  // CALL: ended 
   socket.on('call:end', async ({ to, sessionRoom }: { to: string, sessionRoom: string }) => {
     await endCall(redis, sessionRoom)
     io.to(to).emit('call:ended', { from: socket.id })
   })
 
-  // ─── CALL: media toggle (mute/camera off) ────────────────────────────────────
+  // CALL: media toggle (mute/camera off) 
   socket.on('call:media', ({ to, audio, video }: { to: string, audio: boolean, video: boolean }) => {
     io.to(to).emit('call:media', { from: socket.id, audio, video })
   })
 
-  // ─── DISCONNECT ──────────────────────────────────────────────────────────────
+  // DISCONNECT 
   socket.on('disconnect', async (reason) => {
     console.log(`🔌 Disconnected: ${socket.id} (${reason})`)
     if (currentQuestion) {
@@ -198,7 +207,7 @@ export function registerHandlers(io: Server, socket: Socket, redis: RedisClientT
   })
 }
 
-// ── Shared leave helper ────────────────────────────────────────────────────────
+// Shared leave helper 
 async function handleLeave(io: Server, socket: Socket, redis: RedisClientType<any, any, any>, questionSlug: string) {
   socket.leave(questionSlug)
   await leaveQuestion(redis, { questionSlug, socketId: socket.id })
