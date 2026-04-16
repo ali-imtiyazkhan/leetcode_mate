@@ -1,12 +1,7 @@
-// CodeMate Content Script
-// Runs on https://leetcode.com/problems/* pages
-
 import { io, Socket } from 'socket.io-client'
 import { WebRTCPeer } from './webrtc'
 
 const SERVER_URL = (import.meta as any).env.VITE_SERVER_URL || 'http://localhost:4000'
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
 
 function getQuestionSlug(): string | null {
   const match = window.location.pathname.match(/\/problems\/([^/]+)/)
@@ -31,9 +26,9 @@ function getWidgetHTML(): string {
         background: #282828;
         border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 12px;
-        padding: 16px;
-        min-width: 260px;
-        max-width: 300px;
+        padding: 0;
+        min-width: 300px;
+        max-width: 340px;
         color: #eff2f6;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         font-size: 13px;
@@ -321,6 +316,254 @@ function getWidgetHTML(): string {
       .pill:hover { transform: scale(1.05); }
       .pill-count { font-size: 14px; font-weight: 700; color: #ffa116; }
       .pill-label { font-size: 12px; color: #8a8a8e; }
+
+      /* ── Tab Bar ─────────────────────────────────── */
+      .tab-bar {
+        display: flex;
+        background: #1a1a1a;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+        border-radius: 12px 12px 0 0;
+        overflow: hidden;
+      }
+      .tab-btn {
+        flex: 1;
+        padding: 10px 8px;
+        background: none;
+        border: none;
+        color: #6b6b70;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.25s ease;
+        position: relative;
+        letter-spacing: 0.02em;
+      }
+      .tab-btn:hover { color: #a0a0a8; }
+      .tab-btn.active {
+        color: #ffa116;
+        background: rgba(255, 161, 22, 0.06);
+      }
+      .tab-btn.active::after {
+        content: '';
+        position: absolute;
+        bottom: 0; left: 20%; right: 20%;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, #ffa116, transparent);
+        border-radius: 2px;
+      }
+
+      .tab-panel { display: none; padding: 16px; }
+      .tab-panel.active { display: block; }
+
+      /* ── AI Panel Styles ─────────────────────────── */
+      .ai-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 14px;
+      }
+      .ai-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: #eff2f6;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .ai-title .sparkle { font-size: 16px; }
+
+      .ai-lang-select {
+        background: #1a1a1a;
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 6px;
+        color: #eff2f6;
+        font-size: 11px;
+        padding: 5px 8px;
+        outline: none;
+        cursor: pointer;
+        transition: border-color 0.2s;
+      }
+      .ai-lang-select:focus { border-color: #ffa116; }
+
+      .ai-generate-btn {
+        width: 100%;
+        padding: 11px 14px;
+        border-radius: 10px;
+        border: none;
+        background: linear-gradient(135deg, #ffa116 0%, #ff6b2b 100%);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        letter-spacing: 0.02em;
+        box-shadow: 0 4px 15px rgba(255, 161, 22, 0.2);
+      }
+      .ai-generate-btn:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(255, 161, 22, 0.35);
+      }
+      .ai-generate-btn:active:not(:disabled) { transform: translateY(0); }
+      .ai-generate-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        box-shadow: none;
+      }
+
+      /* Loading skeleton */
+      .ai-loading {
+        display: none;
+        margin-top: 14px;
+      }
+      .ai-loading.visible { display: block; }
+      .ai-skeleton {
+        height: 14px;
+        background: linear-gradient(90deg, #1a1a1a 25%, #2a2a2a 50%, #1a1a1a 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s ease-in-out infinite;
+        border-radius: 4px;
+        margin-bottom: 8px;
+      }
+      .ai-skeleton:nth-child(2) { width: 85%; }
+      .ai-skeleton:nth-child(3) { width: 70%; }
+      .ai-skeleton:nth-child(4) { width: 90%; height: 10px; }
+      .ai-skeleton:nth-child(5) { width: 60%; height: 10px; }
+      @keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+
+      /* Solution output */
+      .ai-output {
+        display: none;
+        margin-top: 14px;
+        max-height: 420px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: #3e3e3e transparent;
+        animation: fadeInUp 0.4s ease;
+      }
+      .ai-output.visible { display: block; }
+
+      @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .ai-section-title {
+        font-size: 12px;
+        font-weight: 700;
+        color: #ffa116;
+        margin: 14px 0 6px 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .ai-section-title:first-child { margin-top: 0; }
+
+      .ai-text {
+        font-size: 12.5px;
+        line-height: 1.7;
+        color: #c8c8d0;
+        word-break: break-word;
+      }
+      .ai-text strong { color: #eff2f6; }
+      .ai-text em { color: #a78bfa; font-style: italic; }
+
+      .ai-complexity {
+        background: rgba(255, 161, 22, 0.06);
+        border: 1px solid rgba(255, 161, 22, 0.12);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 12px;
+        color: #c8c8d0;
+        line-height: 1.6;
+      }
+      .ai-complexity strong { color: #ffa116; }
+
+      .ai-code-wrap {
+        position: relative;
+        margin-top: 6px;
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.06);
+      }
+      .ai-code-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #1a1a1a;
+        padding: 6px 12px;
+        font-size: 10px;
+        color: #6b6b70;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .ai-copy-btn {
+        background: none;
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 4px;
+        color: #8a8a8e;
+        font-size: 10px;
+        padding: 3px 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .ai-copy-btn:hover { color: #ffa116; border-color: #ffa116; }
+      .ai-code-block {
+        background: #0d0d0d;
+        padding: 14px;
+        font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+        font-size: 12px;
+        line-height: 1.7;
+        color: #c8c8d0;
+        overflow-x: auto;
+        white-space: pre;
+        tab-size: 4;
+        scrollbar-width: thin;
+        scrollbar-color: #3e3e3e transparent;
+      }
+
+      /* Syntax highlighting tokens */
+      .tok-kw { color: #c678dd; } /* keywords */
+      .tok-str { color: #98c379; } /* strings */
+      .tok-num { color: #d19a66; } /* numbers */
+      .tok-cm { color: #5c6370; font-style: italic; } /* comments */
+      .tok-fn { color: #61afef; } /* functions */
+      .tok-type { color: #e5c07b; } /* types */
+      .tok-op { color: #56b6c2; } /* operators */
+
+      .ai-error {
+        background: rgba(239, 71, 67, 0.1);
+        border: 1px solid rgba(239, 71, 67, 0.2);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 12px;
+        color: #ef4743;
+        margin-top: 12px;
+        display: none;
+      }
+      .ai-error.visible { display: block; }
+
+      .ai-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 10px;
+        color: #4b5563;
+        margin-top: 10px;
+      }
+      .ai-badge .dot-sm {
+        width: 5px; height: 5px;
+        border-radius: 50%;
+        background: #2cbb5d;
+      }
     </style>
 
     <div class="pill" id="cm-pill">
@@ -330,101 +573,147 @@ function getWidgetHTML(): string {
     </div>
 
     <div class="card" id="cm-card">
-      <div class="header">
-        <span class="brand">CodeMate</span>
-        <button class="minimize-btn" id="cm-minimize" title="Minimize">−</button>
+      <!-- Tab Bar -->
+      <div class="tab-bar">
+        <button class="tab-btn active" id="cm-tab-main">👥 Collab</button>
+        <button class="tab-btn" id="cm-tab-ai">✨ AI Solution</button>
       </div>
 
-      <div class="presence">
-        <div class="dot"></div>
-        <div class="count-wrap">
-          <span class="count" id="cm-count">--</span>
-          <span class="count-label">people solving this</span>
+      <!-- Main Tab Panel -->
+      <div class="tab-panel active" id="cm-panel-main">
+        <div class="header">
+          <span class="brand">CodeMate</span>
+          <button class="minimize-btn" id="cm-minimize" title="Minimize">−</button>
         </div>
-      </div>
 
-      <div class="divider"></div>
-
-      <div id="cm-signin-wrap" style="display:none; flex-direction:column; gap:8px;">
-        <div style="font-size:12px;color:#9ca3af;margin-bottom:4px">Enter your name to join</div>
-        <input type="text" id="cm-name-input" placeholder="Your display name..." maxlength="20" style="background:#0d0d1a;border:1px solid #2a2a40;border-radius:6px;padding:9px 12px;color:#e2e2f0;font-size:13px;outline:none;width:100%" />
-        <button class="btn" id="cm-signin-btn">Join CodeMate</button>
-      </div>
-
-      <button class="btn" id="cm-match-btn" style="display:none">Find a partner</button>
-      <div class="status" id="cm-status"></div>
-
-      <div class="incoming-banner" id="cm-incoming">
-        <div class="incoming-name" id="cm-incoming-name"></div>
-        <div style="font-size:11px;color:#9ca3af;margin-top:2px">wants to solve this with you</div>
-        <div class="incoming-actions">
-          <button class="btn" id="cm-accept-btn" style="background:#15803d">Accept</button>
-          <button class="btn secondary" id="cm-decline-btn">Decline</button>
+        <div class="presence">
+          <div class="dot"></div>
+          <div class="count-wrap">
+            <span class="count" id="cm-count">--</span>
+            <span class="count-label">people solving this</span>
+          </div>
         </div>
-      </div>
 
-      <div class="chat-wrap" id="cm-chat-wrap">
-        <div class="chat-partner">Paired with <span id="cm-partner-name">partner</span></div>
-        <div class="chat-box" id="cm-chat-box"></div>
-        <div class="typing-indicator" id="cm-typing">Partner is typing...</div>
-        <div class="chat-input-row">
-          <input type="text" id="cm-msg-input" placeholder="Message your partner..." maxlength="500" />
-          <button id="cm-send-btn">Send</button>
-        </div>
-        
         <div class="divider"></div>
-        
-        <button class="btn" id="cm-start-call-btn" style="background:#0f6e56;margin-bottom:6px;display:none">
-          Start video call
-        </button>
-        
-        <button class="btn danger" id="cm-end-btn">End session</button>
 
-        <div class="call-wrap" id="cm-call-wrap">
-          <div class="call-bar">
-            <div class="call-status">Call with <span class="name" id="cm-call-partner">partner</span></div>
-            <div class="call-timer" id="cm-call-timer">00:00</div>
-          </div>
-          <div class="videos">
-            <div class="video-wrap">
-              <video id="cm-local-video" autoplay muted playsinline></video>
-              <div class="video-label">You</div>
-            </div>
-            <div class="video-wrap">
-              <video id="cm-remote-video" autoplay playsinline></video>
-              <div class="video-label" id="cm-remote-label">Partner</div>
-            </div>
-          </div>
-          <div class="call-controls">
-            <button class="ctrl-btn active" id="cm-mic-btn">
-              <span class="ctrl-icon">🎙</span><span>Mic</span>
-            </button>
-            <button class="ctrl-btn active" id="cm-cam-btn">
-              <span class="ctrl-icon">📷</span><span>Cam</span>
-            </button>
-            <button class="ctrl-btn" id="cm-screen-btn">
-              <span class="ctrl-icon">🖥</span><span>Screen</span>
-            </button>
-            <button class="ctrl-btn end" id="cm-hangup-btn">
-              <span class="ctrl-icon">📵</span><span>End</span>
-            </button>
+        <div id="cm-signin-wrap" style="display:none; flex-direction:column; gap:8px;">
+          <div style="font-size:12px;color:#9ca3af;margin-bottom:4px">Enter your name to join</div>
+          <input type="text" id="cm-name-input" placeholder="Your display name..." maxlength="20" style="background:#0d0d1a;border:1px solid #2a2a40;border-radius:6px;padding:9px 12px;color:#e2e2f0;font-size:13px;outline:none;width:100%" />
+          <button class="btn" id="cm-signin-btn">Join CodeMate</button>
+        </div>
+
+        <button class="btn" id="cm-match-btn" style="display:none">Find a partner</button>
+        <div class="status" id="cm-status"></div>
+
+        <div class="incoming-banner" id="cm-incoming">
+          <div class="incoming-name" id="cm-incoming-name"></div>
+          <div style="font-size:11px;color:#9ca3af;margin-top:2px">wants to solve this with you</div>
+          <div class="incoming-actions">
+            <button class="btn" id="cm-accept-btn" style="background:#15803d">Accept</button>
+            <button class="btn secondary" id="cm-decline-btn">Decline</button>
           </div>
         </div>
 
-        <div class="incoming-call" id="cm-incoming-call">
-          <div class="incoming-call-name" id="cm-caller-name">Someone</div>
-          <div style="font-size:11px;color:#6b7280;margin-top:2px">is calling you...</div>
-          <div class="incoming-call-actions">
-            <button class="btn" id="cm-answer-btn" style="background:#15803d;margin-top:0;padding:7px">Answer</button>
-            <button class="btn secondary" id="cm-reject-btn" style="margin-top:0;padding:7px">Decline</button>
+        <div class="chat-wrap" id="cm-chat-wrap">
+          <div class="chat-partner">Paired with <span id="cm-partner-name">partner</span></div>
+          <div class="chat-box" id="cm-chat-box"></div>
+          <div class="typing-indicator" id="cm-typing">Partner is typing...</div>
+          <div class="chat-input-row">
+            <input type="text" id="cm-msg-input" placeholder="Message your partner..." maxlength="500" />
+            <button id="cm-send-btn">Send</button>
           </div>
+          
+          <div class="divider"></div>
+          
+          <button class="btn" id="cm-start-call-btn" style="background:#0f6e56;margin-bottom:6px;display:none">
+            Start video call
+          </button>
+          
+          <button class="btn danger" id="cm-end-btn">End session</button>
+
+          <div class="call-wrap" id="cm-call-wrap">
+            <div class="call-bar">
+              <div class="call-status">Call with <span class="name" id="cm-call-partner">partner</span></div>
+              <div class="call-timer" id="cm-call-timer">00:00</div>
+            </div>
+            <div class="videos">
+              <div class="video-wrap">
+                <video id="cm-local-video" autoplay muted playsinline></video>
+                <div class="video-label">You</div>
+              </div>
+              <div class="video-wrap">
+                <video id="cm-remote-video" autoplay playsinline></video>
+                <div class="video-label" id="cm-remote-label">Partner</div>
+              </div>
+            </div>
+            <div class="call-controls">
+              <button class="ctrl-btn active" id="cm-mic-btn">
+                <span class="ctrl-icon">🎙</span><span>Mic</span>
+              </button>
+              <button class="ctrl-btn active" id="cm-cam-btn">
+                <span class="ctrl-icon">📷</span><span>Cam</span>
+              </button>
+              <button class="ctrl-btn" id="cm-screen-btn">
+                <span class="ctrl-icon">🖥</span><span>Screen</span>
+              </button>
+              <button class="ctrl-btn end" id="cm-hangup-btn">
+                <span class="ctrl-icon">📵</span><span>End</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="incoming-call" id="cm-incoming-call">
+            <div class="incoming-call-name" id="cm-caller-name">Someone</div>
+            <div style="font-size:11px;color:#6b7280;margin-top:2px">is calling you...</div>
+            <div class="incoming-call-actions">
+              <button class="btn" id="cm-answer-btn" style="background:#15803d;margin-top:0;padding:7px">Answer</button>
+              <button class="btn secondary" id="cm-reject-btn" style="margin-top:0;padding:7px">Decline</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Solution Tab Panel -->
+      <div class="tab-panel" id="cm-panel-ai">
+        <div class="ai-header">
+          <div class="ai-title">
+            <span class="sparkle">✨</span> AI Solution
+          </div>
+          <select class="ai-lang-select" id="cm-ai-lang">
+            <option value="Python">Python</option>
+            <option value="JavaScript">JavaScript</option>
+            <option value="TypeScript">TypeScript</option>
+            <option value="Java">Java</option>
+            <option value="C++">C++</option>
+            <option value="Go">Go</option>
+            <option value="Rust">Rust</option>
+          </select>
+        </div>
+
+        <button class="ai-generate-btn" id="cm-ai-generate">
+          <span>⚡</span> Generate Solution
+        </button>
+
+        <div class="ai-loading" id="cm-ai-loading">
+          <div class="ai-skeleton"></div>
+          <div class="ai-skeleton"></div>
+          <div class="ai-skeleton"></div>
+          <div class="ai-skeleton"></div>
+          <div class="ai-skeleton"></div>
+        </div>
+
+        <div class="ai-error" id="cm-ai-error"></div>
+
+        <div class="ai-output" id="cm-ai-output"></div>
+
+        <div class="ai-badge" id="cm-ai-badge" style="display:none">
+          <span class="dot-sm"></span>
+          Powered by Gemini Flash
         </div>
       </div>
     </div>
   `
 }
-
-// ── Widget injection ───────────────────────────────────────────────────────────
 
 function injectWidget(slug: string): void {
   if (document.getElementById('codemate-root')) return
@@ -444,8 +733,6 @@ function injectWidget(slug: string): void {
 
   initSocket(shadow, slug)
 }
-
-// ── Socket initialisation & event wiring ──────────────────────────────────────
 
 function initSocket(shadow: ShadowRoot, slug: string): void {
   const socket: Socket = io(SERVER_URL, { transports: ['websocket'], autoConnect: false })
@@ -510,7 +797,6 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
     showMainUI()
   })
 
-  // Call DOM refs
   const $startCallBtn = shadow.getElementById('cm-start-call-btn') as HTMLButtonElement
   const $callWrap     = shadow.getElementById('cm-call-wrap') as HTMLDivElement
   const $callPartner  = shadow.getElementById('cm-call-partner') as HTMLSpanElement
@@ -525,6 +811,255 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
   const $callerName   = shadow.getElementById('cm-caller-name') as HTMLDivElement
   const $answerBtn    = shadow.getElementById('cm-answer-btn') as HTMLButtonElement
   const $rejectBtn    = shadow.getElementById('cm-reject-btn') as HTMLButtonElement
+
+  // ── AI Panel DOM refs ──
+  const $tabMain      = shadow.getElementById('cm-tab-main') as HTMLButtonElement
+  const $tabAi        = shadow.getElementById('cm-tab-ai') as HTMLButtonElement
+  const $panelMain    = shadow.getElementById('cm-panel-main') as HTMLDivElement
+  const $panelAi      = shadow.getElementById('cm-panel-ai') as HTMLDivElement
+  const $aiLang       = shadow.getElementById('cm-ai-lang') as HTMLSelectElement
+  const $aiGenerate   = shadow.getElementById('cm-ai-generate') as HTMLButtonElement
+  const $aiLoading    = shadow.getElementById('cm-ai-loading') as HTMLDivElement
+  const $aiError      = shadow.getElementById('cm-ai-error') as HTMLDivElement
+  const $aiOutput     = shadow.getElementById('cm-ai-output') as HTMLDivElement
+  const $aiBadge      = shadow.getElementById('cm-ai-badge') as HTMLDivElement
+
+  // ── Tab switching ──
+  function switchTab(tab: 'main' | 'ai') {
+    $tabMain.classList.toggle('active', tab === 'main')
+    $tabAi.classList.toggle('active', tab === 'ai')
+    $panelMain.classList.toggle('active', tab === 'main')
+    $panelAi.classList.toggle('active', tab === 'ai')
+  }
+
+  $tabMain.addEventListener('click', () => switchTab('main'))
+  $tabAi.addEventListener('click', () => switchTab('ai'))
+
+  // ── Scrape problem from LeetCode DOM ──
+  function scrapeQuestion(): { title: string; description: string } | null {
+    // Try to get the title
+    const titleEl = document.querySelector('[data-cy="question-title"]')
+      || document.querySelector('.text-title-large')
+      || document.querySelector('div[class*="title"] a')
+      || document.querySelector('h4[class*="title"]')
+      || document.querySelector('[class*="flexlayout__tab"] [class*="title"]')
+    
+    let title = titleEl?.textContent?.trim() || ''
+    
+    // Fallback: build from slug
+    if (!title && slug) {
+      title = slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+    }
+
+    // Try to get the description
+    const descEl = document.querySelector('[data-track-load="description_content"]')
+      || document.querySelector('div[class*="elfjS"]')
+      || document.querySelector('.question-content')
+      || document.querySelector('[class*="_1l1MA"]')
+
+    let description = descEl?.textContent?.trim() || ''
+
+    if (!description) {
+      // Last resort: grab from meta tag
+      const meta = document.querySelector('meta[name="description"]')
+      description = meta?.getAttribute('content') || ''
+    }
+
+    if (!title && !description) return null
+    
+    // Truncate very long descriptions to stay within API limits
+    if (description.length > 3000) {
+      description = description.substring(0, 3000) + '...'
+    }
+    
+    return { title, description }
+  }
+
+  // ── Basic syntax highlighter ──
+  function highlightCode(code: string, lang: string): string {
+    let html = code
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+
+    // Comments
+    html = html.replace(/(\/\/.*$|#.*$)/gm, '<span class="tok-cm">$1</span>')
+    html = html.replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="tok-cm">$1</span>')
+
+    // Strings
+    html = html.replace(/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)/g, '<span class="tok-str">$1</span>')
+
+    // Numbers
+    html = html.replace(/\b(\d+\.?\d*)\b/g, '<span class="tok-num">$1</span>')
+
+    // Keywords
+    const kwPatterns: Record<string, string> = {
+      python: 'def|class|return|if|elif|else|for|while|in|not|and|or|True|False|None|import|from|as|with|try|except|finally|raise|yield|lambda|pass|break|continue|self',
+      javascript: 'const|let|var|function|return|if|else|for|while|do|switch|case|break|continue|class|new|this|import|export|from|async|await|try|catch|finally|throw|typeof|instanceof|null|undefined|true|false',
+      typescript: 'const|let|var|function|return|if|else|for|while|do|switch|case|break|continue|class|new|this|import|export|from|async|await|try|catch|finally|throw|typeof|instanceof|null|undefined|true|false|interface|type|enum|readonly|abstract|implements|extends',
+      java: 'public|private|protected|class|interface|extends|implements|return|if|else|for|while|do|switch|case|break|continue|new|this|super|static|final|void|int|long|double|float|boolean|char|String|null|true|false|try|catch|finally|throw|throws|import|package',
+      cpp: 'int|long|double|float|char|bool|void|string|vector|map|set|class|struct|return|if|else|for|while|do|switch|case|break|continue|new|delete|this|nullptr|true|false|const|auto|using|namespace|include|template|typename|public|private|protected|virtual|override|static',
+      go: 'func|return|if|else|for|range|switch|case|break|continue|var|const|type|struct|interface|map|chan|go|defer|select|package|import|nil|true|false|string|int|int64|float64|bool|error|make|append|len',
+      rust: 'fn|let|mut|return|if|else|for|while|loop|match|break|continue|struct|enum|impl|trait|pub|use|mod|self|Self|true|false|None|Some|Ok|Err|String|Vec|Box|Option|Result|i32|i64|f64|bool|usize|async|await|move|ref|where',
+    }
+
+    const langKey = lang.toLowerCase().replace('c++', 'cpp')
+    const kws = kwPatterns[langKey] || kwPatterns['python']
+    html = html.replace(new RegExp(`\\b(${kws})\\b`, 'g'), '<span class="tok-kw">$1</span>')
+
+    // Function calls
+    html = html.replace(/\b([a-zA-Z_]\w*)\s*(?=\()/g, '<span class="tok-fn">$1</span>')
+
+    return html
+  }
+
+  // ── Render markdown solution to HTML ──
+  function renderSolution(markdown: string): string {
+    let html = ''
+    const lines = markdown.split('\n')
+    let inCodeBlock = false
+    let codeContent = ''
+    let codeLang = ''
+    let blockId = 0
+
+    for (const line of lines) {
+      if (line.trim().startsWith('```') && !inCodeBlock) {
+        inCodeBlock = true
+        codeLang = line.trim().replace('```', '').trim() || 'text'
+        codeContent = ''
+        continue
+      }
+      if (line.trim().startsWith('```') && inCodeBlock) {
+        inCodeBlock = false
+        const highlighted = highlightCode(codeContent.trimEnd(), codeLang)
+        const bid = `cm-code-${blockId++}`
+        html += `<div class="ai-code-wrap">
+          <div class="ai-code-header">
+            <span>${codeLang}</span>
+            <button class="ai-copy-btn" data-code-id="${bid}">Copy</button>
+          </div>
+          <pre class="ai-code-block" id="${bid}">${highlighted}</pre>
+        </div>`
+        continue
+      }
+      if (inCodeBlock) {
+        codeContent += line + '\n'
+        continue
+      }
+
+      // Headings → section titles
+      if (line.startsWith('## ') || line.startsWith('**') && line.endsWith('**')) {
+        const text = line.replace(/^#+\s*/, '').replace(/\*\*/g, '')
+        const icon = text.toLowerCase().includes('intuition') ? '💡' :
+                     text.toLowerCase().includes('approach') ? '🎯' :
+                     text.toLowerCase().includes('complexity') ? '📊' :
+                     text.toLowerCase().includes('code') ? '💻' : '📌'
+        html += `<div class="ai-section-title">${icon} ${text}</div>`
+        continue
+      }
+
+      if (line.startsWith('# ')) continue // skip top-level heading
+
+      // Inline formatting
+      let processed = line
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code style="background:#1a1a1a;padding:1px 5px;border-radius:3px;font-size:11px;color:#ffa116">$1</code>')
+        .replace(/^- (.+)/, '• $1')
+
+      if (processed.trim()) {
+        // Check if it's a complexity line
+        if (processed.toLowerCase().includes('time complexity') || processed.toLowerCase().includes('space complexity')) {
+          html += `<div class="ai-complexity">${processed}</div>`
+        } else {
+          html += `<div class="ai-text">${processed}</div>`
+        }
+      } else {
+        html += '<div style="height:6px"></div>'
+      }
+    }
+
+    return html
+  }
+
+  // ── Fetch AI solution from server ──
+  async function fetchAISolution() {
+    const scraped = scrapeQuestion()
+    if (!scraped) {
+      $aiError.textContent = 'Could not read the problem from this page. Please make sure you are on a LeetCode problem page.'
+      $aiError.classList.add('visible')
+      return
+    }
+
+    const lang = $aiLang.value
+
+    // Reset state
+    $aiError.classList.remove('visible')
+    $aiOutput.classList.remove('visible')
+    $aiBadge.style.display = 'none'
+    $aiLoading.classList.add('visible')
+    $aiGenerate.disabled = true
+    $aiGenerate.innerHTML = '<span>⏳</span> Generating...'
+
+    try {
+      const response = await fetch(`${SERVER_URL}/ai/solve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug,
+          title: scraped.title,
+          description: scraped.description,
+          language: lang,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate solution')
+      }
+
+      // Render the solution
+      $aiOutput.innerHTML = renderSolution(data.solution)
+      $aiOutput.classList.add('visible')
+      $aiBadge.style.display = 'inline-flex'
+
+      // Wire up copy buttons
+      $aiOutput.querySelectorAll('.ai-copy-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const codeId = (btn as HTMLElement).dataset.codeId
+          if (!codeId) return
+          const codeEl = shadow.getElementById(codeId)
+          if (!codeEl) return
+          const text = codeEl.textContent || ''
+          navigator.clipboard.writeText(text).then(() => {
+            const origText = btn.textContent
+            btn.textContent = 'Copied!'
+            ;(btn as HTMLElement).style.color = '#2cbb5d'
+            ;(btn as HTMLElement).style.borderColor = '#2cbb5d'
+            setTimeout(() => {
+              btn.textContent = origText
+              ;(btn as HTMLElement).style.color = ''
+              ;(btn as HTMLElement).style.borderColor = ''
+            }, 2000)
+          })
+        })
+      })
+
+    } catch (err: any) {
+      $aiError.textContent = err.message || 'Something went wrong. Please try again.'
+      $aiError.classList.add('visible')
+    } finally {
+      $aiLoading.classList.remove('visible')
+      $aiGenerate.disabled = false
+      $aiGenerate.innerHTML = '<span>⚡</span> Generate Solution'
+    }
+  }
+
+  $aiGenerate.addEventListener('click', fetchAISolution)
 
   $minimize.addEventListener('click', () => {
     $card.style.display = 'none'

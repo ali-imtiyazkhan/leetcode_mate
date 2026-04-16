@@ -4,11 +4,12 @@ import { Server, Socket } from 'socket.io'
 import { createClient } from 'redis'
 import cors from 'cors'
 import { registerHandlers } from './socket/handlers.js'
+import aiRouter from './routes/ai.js'
 
 const app = express()
 const httpServer = createServer(app)
 
-app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:3000' }))
+app.use(cors({ origin: '*' }))
 app.use(express.json())
 
 const io = new Server(httpServer, {
@@ -98,6 +99,9 @@ app.get('/health', (_, res) => res.json({
   redis: isRedisReady ? 'connected' : 'disconnected',
   timestamp: Date.now() 
 }))
+
+// AI Solution route
+app.use('/ai', aiRouter)
 
 // Stats endpoint — total active users across all rooms
 app.get('/stats', async (req, res) => {
