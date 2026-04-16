@@ -45,8 +45,8 @@ router.post('/solve', async (req: Request, res: Response) => {
 
   const lang = language || 'Python'
 
-  const prompt = `You are an expert competitive programmer and educator.
-Solve the following LeetCode problem. Provide a clear, well-structured solution.
+  const prompt = `You are an expert competitive programmer and a very friendly, patient educator.
+Solve the following LeetCode problem. Your goal is to explain the solution in the absolute simplest way possible, as if explaining it to a beginner.
 
 **Problem:** ${title}
 
@@ -54,13 +54,14 @@ Solve the following LeetCode problem. Provide a clear, well-structured solution.
 ${description}
 
 **Requirements:**
-1. Start with a brief **Intuition** section (2-3 sentences on the core idea)
-2. Then a detailed **Approach** section explaining the algorithm step-by-step
-3. Then **Complexity Analysis** with Time and Space complexity
-4. Finally, provide clean, well-commented **Code** in ${lang}
+1. **Intuition**: Explain the core idea in plain English. Use simple analogies. Do not use complex math formulas. 
+2. **Approach**: Explain the algorithm step-by-step using plain, easy-to-understand language.
+3. **Complexity Analysis**: State Time and Space complexity simply.
+4. **Code**: Provide the standard LeetCode \`class Solution:\` format in ${lang}. Write extremely clean, readable code with simple variable names, and add clear comments for each step.
 
-Format your response in Markdown. Use \`\`\`${lang.toLowerCase()}\`\`\` for code blocks.
-Keep explanations concise but thorough. Focus on the optimal solution.`
+Format your response in Markdown. 
+IMPORTANT: DO NOT use LaTeX math symbols like $ or $$. Just write normal text (e.g. "O(n)" instead of "$O(n)$").
+Use \`\`\`${lang.toLowerCase()}\`\`\` for code blocks.`
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey)
