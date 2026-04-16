@@ -526,7 +526,6 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
   const $answerBtn    = shadow.getElementById('cm-answer-btn') as HTMLButtonElement
   const $rejectBtn    = shadow.getElementById('cm-reject-btn') as HTMLButtonElement
 
-  // ── Minimize ──
   $minimize.addEventListener('click', () => {
     $card.style.display = 'none'
     $pill.style.display = 'flex'
@@ -537,7 +536,6 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
     $pill.style.display = 'none'
   })
 
-  // ── Connect ──
   socket.on('connect', () => {
     socket.emit('join:question', { questionSlug: slug, userId, displayName })
   })
@@ -546,7 +544,6 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
     setStatus('Cannot connect to server', 'error')
   })
 
-  // ── Presence ──
   function updateCount(count: number): void {
     $count.textContent = String(count)
     $pillCount.textContent = String(count)
@@ -556,7 +553,6 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
   socket.on('join:confirmed', ({ count }: { count: number }) => updateCount(count))
   socket.on('presence:update', ({ count }: { count: number }) => updateCount(count))
 
-  // ── Match request ──
   $matchBtn.addEventListener('click', () => {
     setStatus('Looking for a partner...')
     $matchBtn.disabled = true
