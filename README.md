@@ -101,24 +101,6 @@ Navigate to any LeetCode problem. The CodeMate widget will automatically initial
 
 ---
 
-## 🗺 Roadmap
-
-### Phase 1 ✅
-- [x] Live user presence tracking
-- [x] WebRTC signaling & random matchmaking
-- [x] Extension UI and Chat widget
-
-### Phase 2 ✅
-- [x] AI Assistant (Generate optimized solutions using Gemini Flash)
-- [x] Native Collaborative Whiteboard (Synched via Socket.io)
-- [x] AI Code Debugger (DOM Scraper for Monaco editor analysis)
-
-### Phase 3 🚧
-- [ ] NextAuth User Accounts Integration
-- [ ] Skill-based pairing (Easy / Medium / Hard matching algorithms)
-- [ ] Session timers, Pomodoro mode, and user accountability streaks
-
----
 
 ## ⚖️ License
 MIT License
