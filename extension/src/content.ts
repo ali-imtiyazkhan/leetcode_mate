@@ -564,6 +564,47 @@ function getWidgetHTML(): string {
         border-radius: 50%;
         background: #2cbb5d;
       }
+      /* ── Board Panel Styles ──────────────────────── */
+      .board-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        background: #1a1a1a;
+        padding: 6px 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.05);
+      }
+      .board-colors { display: flex; gap: 8px; }
+      .board-color {
+        width: 16px; height: 16px;
+        border-radius: 50%;
+        cursor: pointer;
+        border: 2px solid transparent;
+        transition: transform 0.2s;
+      }
+      .board-color:hover { transform: scale(1.1); }
+      .board-color.active { border-color: #fff; transform: scale(1.1); }
+      .board-clear {
+        background: none; border: none; color: #ef4743; font-size: 11px; font-weight: 600; cursor: pointer;
+        padding: 4px 8px; border-radius: 4px; transition: background 0.2s;
+      }
+      .board-clear:hover { background: rgba(239, 71, 67, 0.1); }
+      .board-canvas-wrap {
+        background: #0d0d0d;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.1);
+        overflow: hidden;
+        cursor: crosshair;
+        touch-action: none;
+        display: flex;
+        justify-content: center;
+      }
+      .board-canvas {
+        background: #0d0d0d;
+        width: 300px;
+        height: 350px;
+      }
     </style>
 
     <div class="pill" id="cm-pill">
@@ -576,7 +617,8 @@ function getWidgetHTML(): string {
       <!-- Tab Bar -->
       <div class="tab-bar">
         <button class="tab-btn active" id="cm-tab-main">👥 Collab</button>
-        <button class="tab-btn" id="cm-tab-ai">✨ AI Solution</button>
+        <button class="tab-btn" id="cm-tab-ai">✨ AI Sol</button>
+        <button class="tab-btn" id="cm-tab-board">🎨 Board</button>
       </div>
 
       <!-- Main Tab Panel -->
@@ -693,6 +735,9 @@ function getWidgetHTML(): string {
         <button class="ai-generate-btn" id="cm-ai-generate">
           <span>⚡</span> Generate Solution
         </button>
+        <button class="ai-generate-btn" id="cm-ai-analyze" style="background:#3e3e3e;margin-top:8px;box-shadow:none;color:#eff2f6;">
+          <span>🐞</span> Analyze My Code
+        </button>
 
         <div class="ai-loading" id="cm-ai-loading">
           <div class="ai-skeleton"></div>
@@ -709,6 +754,23 @@ function getWidgetHTML(): string {
         <div class="ai-badge" id="cm-ai-badge" style="display:none">
           <span class="dot-sm"></span>
           Powered by Gemini Flash
+        </div>
+      </div>
+
+      <!-- Board Tab Panel -->
+      <div class="tab-panel" id="cm-panel-board">
+        <div class="board-toolbar">
+          <div class="board-colors">
+            <div class="board-color active" style="background:#ffa116" data-color="#ffa116"></div>
+            <div class="board-color" style="background:#2cbb5d" data-color="#2cbb5d"></div>
+            <div class="board-color" style="background:#ef4743" data-color="#ef4743"></div>
+            <div class="board-color" style="background:#61afef" data-color="#61afef"></div>
+            <div class="board-color" style="background:#e2e2f0" data-color="#e2e2f0"></div>
+          </div>
+          <button class="board-clear" id="cm-board-clear">Clear 🗑</button>
+        </div>
+        <div class="board-canvas-wrap">
+          <canvas id="cm-canvas" class="board-canvas" width="300" height="350"></canvas>
         </div>
       </div>
     </div>
@@ -752,7 +814,7 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
   let camEnabled = true
   let isSharing = false
 
-  // ── DOM refs ──
+  // DOM refs
   const $count       = shadow.getElementById('cm-count') as HTMLSpanElement
   const $pillCount   = shadow.getElementById('cm-pill-count') as HTMLSpanElement
   const $status      = shadow.getElementById('cm-status') as HTMLDivElement
@@ -812,7 +874,7 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
   const $answerBtn    = shadow.getElementById('cm-answer-btn') as HTMLButtonElement
   const $rejectBtn    = shadow.getElementById('cm-reject-btn') as HTMLButtonElement
 
-  // ── AI Panel DOM refs ──
+  // AI Panel DOM refs
   const $tabMain      = shadow.getElementById('cm-tab-main') as HTMLButtonElement
   const $tabAi        = shadow.getElementById('cm-tab-ai') as HTMLButtonElement
   const $panelMain    = shadow.getElementById('cm-panel-main') as HTMLDivElement
@@ -823,19 +885,30 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
   const $aiError      = shadow.getElementById('cm-ai-error') as HTMLDivElement
   const $aiOutput     = shadow.getElementById('cm-ai-output') as HTMLDivElement
   const $aiBadge      = shadow.getElementById('cm-ai-badge') as HTMLDivElement
+  const $aiAnalyze    = shadow.getElementById('cm-ai-analyze') as HTMLButtonElement
 
-  // ── Tab switching ──
-  function switchTab(tab: 'main' | 'ai') {
+  // Board Panel DOM refs
+  const $tabBoard     = shadow.getElementById('cm-tab-board') as HTMLButtonElement
+  const $panelBoard   = shadow.getElementById('cm-panel-board') as HTMLDivElement
+  const $boardColors  = shadow.querySelectorAll('.board-color')
+  const $boardClear   = shadow.getElementById('cm-board-clear') as HTMLButtonElement
+  const $canvas       = shadow.getElementById('cm-canvas') as HTMLCanvasElement
+
+  // Tab switching
+  function switchTab(tab: 'main' | 'ai' | 'board') {
     $tabMain.classList.toggle('active', tab === 'main')
     $tabAi.classList.toggle('active', tab === 'ai')
+    $tabBoard.classList.toggle('active', tab === 'board')
     $panelMain.classList.toggle('active', tab === 'main')
     $panelAi.classList.toggle('active', tab === 'ai')
+    $panelBoard.classList.toggle('active', tab === 'board')
   }
 
   $tabMain.addEventListener('click', () => switchTab('main'))
   $tabAi.addEventListener('click', () => switchTab('ai'))
+  $tabBoard.addEventListener('click', () => switchTab('board'))
 
-  // ── Scrape problem from LeetCode DOM ──
+  // Scrape problem from LeetCode DOM
   function scrapeQuestion(): { title: string; description: string } | null {
     // Try to get the title
     const titleEl = document.querySelector('[data-cy="question-title"]')
@@ -873,6 +946,13 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
     }
     
     return { title, description }
+  }
+
+  function scrapeUserCode(): string | null {
+    // LeetCode uses Monaco editor, which breaks code into .view-line divs
+    const lines = document.querySelectorAll('.view-line')
+    if (!lines || lines.length === 0) return null
+    return Array.from(lines).map(line => line.textContent).join('\n')
   }
 
   // ── Basic syntax highlighter ──
@@ -913,7 +993,7 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
     return html
   }
 
-  // ── Render markdown solution to HTML ──
+  // Render markdown solution to HTML
   function renderSolution(markdown: string): string {
     let html = ''
     const lines = markdown.split('\n')
@@ -985,7 +1065,7 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
     return html
   }
 
-  // ── Fetch AI solution from server ──
+  // Fetch AI solution from server
   async function fetchAISolution() {
     const scraped = scrapeQuestion()
     if (!scraped) {
@@ -1059,7 +1139,164 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
     }
   }
 
+  // Fetch AI Code Analysis from server
+  async function fetchAIAnalyze() {
+    const scraped = scrapeQuestion()
+    const userCode = scrapeUserCode()
+    if (!scraped) {
+      $aiError.textContent = 'Could not read the problem description from this page.'
+      $aiError.classList.add('visible')
+      return
+    }
+    if (!userCode || userCode.trim() === '') {
+      $aiError.textContent = 'Could not find any code in the editor to analyze. Make sure you have written some code.'
+      $aiError.classList.add('visible')
+      return
+    }
+
+    // Reset state
+    $aiError.classList.remove('visible')
+    $aiOutput.classList.remove('visible')
+    $aiBadge.style.display = 'none'
+    $aiLoading.classList.add('visible')
+    $aiAnalyze.disabled = true
+    $aiAnalyze.innerHTML = '<span>⏳</span> Analyzing...'
+
+    try {
+      const response = await fetch(`${SERVER_URL}/ai/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: scraped.title,
+          description: scraped.description,
+          code: userCode,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to analyze code')
+      }
+
+      // Render the analysis (re-using the solution renderer)
+      $aiOutput.innerHTML = renderSolution(data.analysis)
+      $aiOutput.classList.add('visible')
+      $aiBadge.style.display = 'inline-flex'
+      
+      // Wire up copy buttons (if any are generated)
+      $aiOutput.querySelectorAll('.ai-copy-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const codeId = (btn as HTMLElement).dataset.codeId
+          if (!codeId) return
+          const codeEl = shadow.getElementById(codeId)
+          if (!codeEl) return
+          navigator.clipboard.writeText(codeEl.textContent || '').then(() => {
+            const origText = btn.textContent
+            btn.textContent = 'Copied!'
+            ;(btn as HTMLElement).style.color = '#2cbb5d'
+            setTimeout(() => { btn.textContent = origText; (btn as HTMLElement).style.color = '' }, 2000)
+          })
+        })
+      })
+
+    } catch (err: any) {
+      $aiError.textContent = err.message || 'Something went wrong. Please try again.'
+      $aiError.classList.add('visible')
+    } finally {
+      $aiLoading.classList.remove('visible')
+      $aiAnalyze.disabled = false
+      $aiAnalyze.innerHTML = '<span>🐞</span> Analyze My Code'
+    }
+  }
+
   $aiGenerate.addEventListener('click', fetchAISolution)
+  $aiAnalyze.addEventListener('click', fetchAIAnalyze)
+
+  // Native Board Logic
+  const ctx = $canvas.getContext('2d')
+  let isDrawing = false
+  let currentStrokeColor = '#ffa116'
+  let lastX = 0
+  let lastY = 0
+
+  $boardColors.forEach(el => {
+    el.addEventListener('click', () => {
+      $boardColors.forEach(c => c.classList.remove('active'))
+      el.classList.add('active')
+      currentStrokeColor = (el as HTMLDivElement).dataset.color || '#ffa116'
+    })
+  })
+
+  $boardClear.addEventListener('click', () => {
+    ctx?.clearRect(0, 0, $canvas.width, $canvas.height)
+    if (sessionRoom) {
+      socket.emit('board:clear', { sessionRoom })
+    }
+  })
+
+  function drawLine(x0: number, y0: number, x1: number, y1: number, color: string, emit: boolean) {
+    if (!ctx) return
+    ctx.beginPath()
+    ctx.moveTo(x0, y0)
+    ctx.lineTo(x1, y1)
+    ctx.strokeStyle = color
+    ctx.lineWidth = 3
+    ctx.lineCap = 'round'
+    ctx.stroke()
+    ctx.closePath()
+
+    if (!emit || !sessionRoom) return
+    socket.emit('board:draw', {
+      sessionRoom,
+      x0, y0, x1, y1, color
+    })
+  }
+
+  function getMousePos(e: MouseEvent | TouchEvent) {
+    const rect = $canvas.getBoundingClientRect()
+    let clientX, clientY
+    if (window.TouchEvent && e instanceof TouchEvent) {
+      clientX = e.touches[0].clientX
+      clientY = e.touches[0].clientY
+    } else {
+      clientX = (e as MouseEvent).clientX
+      clientY = (e as MouseEvent).clientY
+    }
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top
+    }
+  }
+
+  function startDrawing(e: MouseEvent | TouchEvent) {
+    isDrawing = true
+    const pos = getMousePos(e)
+    lastX = pos.x
+    lastY = pos.y
+  }
+
+  function draw(e: MouseEvent | TouchEvent) {
+    if (!isDrawing) return
+    e.preventDefault()
+    const pos = getMousePos(e)
+    drawLine(lastX, lastY, pos.x, pos.y, currentStrokeColor, true)
+    lastX = pos.x
+    lastY = pos.y
+  }
+
+  function stopDrawing() {
+    isDrawing = false
+  }
+
+  $canvas.addEventListener('mousedown', startDrawing)
+  $canvas.addEventListener('mousemove', draw)
+  $canvas.addEventListener('mouseup', stopDrawing)
+  $canvas.addEventListener('mouseout', stopDrawing)
+  $canvas.addEventListener('touchstart', startDrawing)
+  $canvas.addEventListener('touchmove', draw)
+  $canvas.addEventListener('touchend', stopDrawing)
+
 
   $minimize.addEventListener('click', () => {
     $card.style.display = 'none'
@@ -1105,7 +1342,7 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
     socket.emit('match:accept', { fromSocketId: pid })
   })
 
-  // ── Incoming match ──
+  // Incoming match
   socket.on('match:incoming', ({ fromSocketId, fromName }: { fromSocketId: string, fromName: string }) => {
     partnerSocketId = fromSocketId
     $incomingName.textContent = fromName || 'Someone'
@@ -1174,6 +1411,15 @@ function initSocket(shadow: ShadowRoot, slug: string): void {
     if (from !== socket.id) {
       $typing.classList.toggle('visible', isTyping)
     }
+  })
+
+  // ── Board Sync ──
+  socket.on('board:draw', (data: { x0: number, y0: number, x1: number, y1: number, color: string }) => {
+    drawLine(data.x0, data.y0, data.x1, data.y1, data.color, false)
+  })
+
+  socket.on('board:clear', () => {
+    ctx?.clearRect(0, 0, $canvas.width, $canvas.height)
   })
 
   // WebRTC
