@@ -64,12 +64,12 @@ Keep explanations concise but thorough. Focus on the optimal solution.`
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' })
 
     const result = await model.generateContent(prompt)
     const text = result.response.text()
 
-    res.json({ solution: text, model: 'gemini-1.5-flash' })
+    res.json({ solution: text, model: 'gemini-flash-latest' })
   } catch (err: any) {
     console.error('❌ AI generation error:', err.message)
     res.status(500).json({ error: 'Failed to generate solution. Please try again.' })
